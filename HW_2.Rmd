@@ -1,0 +1,37 @@
+---
+title: "HomeWork_2"
+author: "Ekaterina Fokina"
+date: "2022-10-26"
+output: html_document:
+  css: style.css
+  keep_md: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Загрузим данные и необходимые пакеты
+
+```{r, message=FALSE, warning=FALSE}
+insurance <- read.csv("insurance_cost.csv")
+summary(insurance)
+
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(ggbiplot)
+```
+
+#График ИМТ-траты в plotly
+
+```{r}
+
+plot_ly(
+  data = insurance,
+  x = ~ bmi,
+  y = ~ charges)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
