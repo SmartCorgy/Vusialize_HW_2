@@ -2,16 +2,14 @@
 title: "HomeWork_2"
 author: "Ekaterina Fokina"
 date: "2022-10-26"
-output: html_document:
-  css: style.css
-  keep_md: TRUE
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Загрузим данные и необходимые пакеты
+# Загрузим данные и необходимые пакеты (№1)
 
 ```{r, message=FALSE, warning=FALSE}
 insurance <- read.csv("insurance_cost.csv")
@@ -21,17 +19,47 @@ library(dplyr)
 library(ggplot2)
 library(plotly)
 library(ggbiplot)
+library(ggpubr)
+library(corrplot)
+library(corrr)
 ```
 
-#График ИМТ-траты в plotly
+#График ИМТ-траты в plotly (№2)
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 
 plot_ly(
   data = insurance,
   x = ~ bmi,
-  y = ~ charges)
+  y = ~ charges,
+  color = ~ smoker)
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# А теперь в ggplotly (№3)
+
+```{r}
+plot <- insurance %>%
+  ggplot(aes(x = bmi, y = charges, color = smoker)) +
+  geom_point(size = 1.5) +
+  theme_light()
+
+ggplotly(plot)
+```
+
+# Корреляционный анализ (№4)
+
+```{r}
+insurance_for_cor <- insurance %>%
+  select(is.integer | is.numeric)
+
+insurance_cor <- cor(insurance_for_cor)
+insurance_cor
+```
+
+## Визуализируем матрицу
+
+```{r}
+corrplot(insurance_cor, method = "color", order = "alphabet", type = "upper")
+```
+
