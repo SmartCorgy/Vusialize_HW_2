@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, message=FALSE, warning=FALSE}
 insurance <- read.csv("insurance_cost.csv")
-summary(insurance)
+str(insurance)
 
 library(dplyr)
 library(ggplot2)
@@ -22,6 +22,7 @@ library(ggbiplot)
 library(ggpubr)
 library(corrplot)
 library(corrr)
+library(caret)
 ```
 
 #График ИМТ-траты в plotly (№2)
@@ -61,5 +62,37 @@ insurance_cor
 
 ```{r}
 corrplot(insurance_cor, method = "color", order = "alphabet", type = "upper")
+```
+
+## И другим способом
+
+```{r}
+corrplot.mixed(insurance_cor, lower = "color", upper = "pie", order = "AOE")
+```
+
+## И ещё одним
+
+```{r}
+insurance_cor %>%
+  rplot()
+```
+
+# Поработаем с датафреймом (№5)
+
+```{r}
+# Сначала отберем все номинативные переменные и превратим их в бинарные
+
+dummy <- dummyVars(" ~ sex + smoker + region", data = insurance)
+
+dummy_insurance <- data.frame(predict(dummy, newdata = insurance))
+
+# И объединим с оставшимися нумерическими переменными из оригинального датафрейма
+
+other_insurance <- insurance %>%
+  select("bmi", "charges")
+
+new_insurance <- other_insurance %>% bind_cols(dummy_insurance)
+
+glimpse(new_insurance)
 ```
 
