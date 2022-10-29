@@ -2,7 +2,10 @@
 title: "HomeWork_2"
 author: "Ekaterina Fokina"
 date: "2022-10-26"
-output: html_document
+output: 
+  html_document:
+    style: style.css
+    keep_md: TRUE
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r, message=FALSE, warning=FALSE}
 insurance <- read.csv("insurance_cost.csv")
-str(insurance)
+summary(insurance)
 
 library(dplyr)
 library(ggplot2)
@@ -22,9 +25,11 @@ library(ggbiplot)
 library(ggpubr)
 library(corrplot)
 library(corrr)
-library(caret)
+library(fastDummies)
 library(factoextra)
 library(pheatmap)
+library(FactoMineR)
+library(devtools)
 ```
 
 #График ИМТ-траты в plotly (№2)
@@ -52,7 +57,7 @@ ggplotly(plot)
 
 # Корреляционный анализ (№4)
 
-```{r}
+```{r, warning=FALSE}
 insurance_for_cor <- insurance %>%
   select(is.integer | is.numeric)
 
@@ -82,20 +87,10 @@ insurance_cor %>%
 # Поработаем с датафреймом (№5)
 
 ```{r}
-# Сначала отберем все номинативные переменные и превратим их в бинарные
+# Отберем все номинативные переменные и превратим их в бинарные и удалим оригинальные колонки из датафрейма
 
-dummy <- dummyVars(" ~ sex + smoker + region", data = insurance)
+new_insurance <- dummy_cols(insurance, select_columns = c("sex", "smoker", "region"), remove_selected_columns = TRUE)
 
-dummy_insurance <- data.frame(predict(dummy, newdata = insurance))
-
-# И объединим с оставшимися нумерическими переменными из оригинального датафрейма
-
-other_insurance <- insurance %>%
-  select("age", "bmi", "children", "charges")
-
-new_insurance <- other_insurance %>% bind_cols(dummy_insurance)
-
-glimpse(new_insurance)
 ```
 
 # Иерархическая классификация (№6)
@@ -110,7 +105,7 @@ head(insurance_scaled)
 
 insurance_dist <- dist(insurance_scaled, method = "euclidean")
 as.matrix(insurance_dist)[1:6, 1:6]
-typeof(insurance_dist)
+
 # Высчитываем дендрограмму
 
 insurance_hc <- hclust(d = insurance_dist, 
@@ -146,5 +141,127 @@ fviz_cluster(list(data = insurance_scaled, cluster = clusters),
 
 ```{r}
 pheatmap(insurance_scaled)
+```
+
+# Проведем анализ данных new_insurance методом PCA
+
+```{r}
+insurance_pca <- prcomp(new_insurance, scale = T)
+
+summary(insurance_pca)
+```
+
+Из полученных результатов видно, что 50% вариации данных объяснятся первыми тремя переменными. Посмотрим на это на графике:
+
+```{r}
+fviz_eig(insurance_pca, 
+         addlabels = T, 
+         ylim = c(0, 30))
+```
+
+Посмотрим распределение переменных относительно pc1 и pc2:
+
+```{r}
+fviz_pca_var(insurance_pca, col.var = "contrib")
+```
+
+Из графика видно, что переменные *sex_male* и *sex_female* направлены строго противоположно, что логично, так как это несовместные события. Помимо этого, образовалась группа из переменных *charges* и *smoker_yes*. Переменные регионов проживания образовали тесную группу, сосредоточенную у центра окружности. Иными словами, регион проживания вносит незначительный вклад в анализируемые главные компоненты.
+
+Чтобы немного почистить график, оставим только топ 5 самых важных переменных:
+
+```{r}
+fviz_pca_var(insurance_pca, 
+             select.var = list(contrib = 5), 
+             col.var = "contrib")
+```
+
+Чтобы понять, что стоит за pc1, pc2 и pc3, построим графики:
+
+```{r}
+fviz_contrib(insurance_pca, choice = "var", axes = 1, top = 12)
+fviz_contrib(insurance_pca, choice = "var", axes = 2, top = 12)
+fviz_contrib(insurance_pca, choice = "var", axes = 3, top = 12)
+```
+
+Таким образом, переменная *smoker* хорошо кластериует наблюдения в оригинальном датасете. Аналогично можно судить о переменной *sex*.
+
+И построим график ggbiplot, чтобы на нем одновременно изобразить переменные и наблюдения:
+
+```{r}
+ggbiplot(insurance_pca, 
+         scale = 0, alpha = 0.1) + 
+  theme_light()
+```
+
+*Мне захотелось визуализировать кластеризацию по полу и статусу курильщика*
+
+```{r}
+ggbiplot(insurance_pca, 
+         scale=0, 
+         groups = as.factor(insurance$sex), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_light()
+
+ggbiplot(insurance_pca, 
+         scale=0, 
+         groups = as.factor(insurance$smoker), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_light()
+```
+
+
+# Проведем кластеризацию по возрасту (№10)
+
+```{r}
+# Создадим сначала переменную age_group
+new_insurance_age <- new_insurance %>%
+  mutate(age_group = case_when(
+    age < 26 ~ "18-25",
+    age >= 26 & age < 41 ~ "26-40",
+    age >= 41 & age < 56 ~ "41-55",
+    age >= 56 ~ "56-65"
+  ))
+
+ggbiplot(insurance_pca, 
+         scale=0, 
+         groups = as.factor(new_insurance_age$age_group), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_light()
+```
+
+# Добавим еще номинативные переменные
+
+```{r}
+# Создадим переменную any_child, которая будет рассказывать о том, есть ли у человека хотя бы один ребенок
+new_insurance_children <- new_insurance %>%
+  mutate(any_child = as.character(ifelse(children >= 1, "Yes", "No")))
+
+ggbiplot(insurance_pca, 
+         scale=0, 
+         groups = as.factor(new_insurance_children$any_child), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_light()
+```
+
+```{r}
+# Создадим переменную, которая разобьет субъектов на группы в соответствии с тем, является ли их масса тела недостаточной, избыточной или нормальной
+
+new_insurance_bmi <- new_insurance %>%
+  mutate(bmi_group = case_when(
+    bmi < 18.5 ~ "underweight",
+    bmi >= 18.5 & bmi < 25 ~ "normal",
+    bmi >= 25 ~ "overweight"
+  ))
+
+ggbiplot(insurance_pca, 
+         scale=0, 
+         groups = as.factor(new_insurance_bmi$bmi_group), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_light()
 ```
 
