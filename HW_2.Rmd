@@ -2,10 +2,11 @@
 title: "HomeWork_2"
 author: "Ekaterina Fokina"
 date: "2022-10-26"
-output: 
+output:
   html_document:
     style: style.css
-    keep_md: TRUE
+    keep_md: yes
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -34,7 +35,7 @@ library(devtools)
 
 #График ИМТ-траты в plotly (№2)
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, eval=FALSE}
 
 plot_ly(
   data = insurance,
@@ -46,7 +47,7 @@ plot_ly(
 
 # А теперь в ggplotly (№3)
 
-```{r}
+```{r, eval=FALSE}
 plot <- insurance %>%
   ggplot(aes(x = bmi, y = charges, color = smoker)) +
   geom_point(size = 1.5) +
@@ -156,7 +157,11 @@ summary(insurance_pca)
 ```{r}
 fviz_eig(insurance_pca, 
          addlabels = T, 
-         ylim = c(0, 30))
+         ylim = c(0, 30)) +
+  ggtitle("Как разные компоненты объясняют вариативность данных") +
+  labs(x = "Измерения", y= "Процент объясненной вариативности") +
+  theme_light() +
+  theme(text = element_text(size = 10), plot.title = element_text(hjust = 0.5, size = 10))
 ```
 
 Посмотрим распределение переменных относительно pc1 и pc2:
@@ -165,7 +170,7 @@ fviz_eig(insurance_pca,
 fviz_pca_var(insurance_pca, col.var = "contrib")
 ```
 
-Из графика видно, что переменные *sex_male* и *sex_female* направлены строго противоположно, что логично, так как это несовместные события. Помимо этого, образовалась группа из переменных *charges* и *smoker_yes*. Переменные регионов проживания образовали тесную группу, сосредоточенную у центра окружности. Иными словами, регион проживания вносит незначительный вклад в анализируемые главные компоненты.
+Из графика видно, что переменные *sex_male* и *sex_female* направлены строго противоположно, что логично, так как это несовместные события. То же справедливо и для переменных *smoker_yes* и *smoker_no*. Помимо этого, образовалась группа из переменных *charges* и *smoker_yes*. Переменные регионов проживания образовали тесную группу, сосредоточенную у центра окружности. Иными словами, регион проживания вносит незначительный вклад в анализируемые главные компоненты.
 
 Чтобы немного почистить график, оставим только топ 5 самых важных переменных:
 
@@ -265,3 +270,113 @@ ggbiplot(insurance_pca,
   theme_light()
 ```
 
+# Попробуем "поиграть" с данными, чтобы поднять качество анализа (№12)
+
+## Эксперимент №1
+
+Первая моя мысль - убрать из оригинального датафрейма очевидно кластеризующие переменные *sex* и *smoker* и посмотреть, что из этого получится.
+
+```{r}
+new_insurance_12_dummy <- dummy_cols(insurance, select_columns = c("region"), remove_selected_columns = TRUE)
+
+new_insurance_12 <- new_insurance_12_dummy %>% select(where(is.numeric))
+
+insurance_12_pca <- prcomp(new_insurance_12, scale = T) # Посчитаем PCA
+
+summary(insurance_12_pca)
+
+fviz_eig(insurance_12_pca, 
+         addlabels = T, 
+         ylim = c(0, 30)) +
+  ggtitle("Как разные компоненты объясняют вариативность данных") +
+  labs(x = "Измерения", y= "Процент объясненной вариативности") +
+  theme_light() +
+  theme(text = element_text(size = 10), plot.title = element_text(hjust = 0.5, size = 10))
+
+fviz_pca_var(insurance_12_pca, col.var = "contrib") +
+  ggtitle("Переменные - PCA") +
+  theme_light() +
+  theme(text = element_text(size = 10), plot.title = element_text(hjust = 0.5, size = 10))# Посмотрим, как выглядит график с нынешними переменными
+
+# Отношение переменных к главным компонентам:
+fviz_contrib(insurance_12_pca, choice = "var", axes = 1, top = 12)
+fviz_contrib(insurance_12_pca, choice = "var", axes = 2, top = 12)
+fviz_contrib(insurance_12_pca, choice = "var", axes = 3, top = 12)
+
+ggbiplot(insurance_12_pca, 
+         scale=0, 
+         groups = as.factor(insurance$region), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_minimal() # Визуализируем полученную кластеризацию
+```
+
+Из полученных данных можно судить о том, что сила кластеризации по полу и статуса курильщика была настолько высокой, что мы не могли увидеть, что наблюдения можно разделить и по регионам.
+
+## Эксперимент №2
+
+Раз уж начали играть с ИМТ, давайте переведем нашу номинативную переменную *bmi_group* в дамми.
+(А пол и статус курильщика возвращать не будем)
+
+
+```{r}
+insurance_bmi <- insurance %>%
+  mutate(bmi_group = case_when(
+    bmi < 18.5 ~ "underweight",
+    bmi >= 18.5 & bmi < 25 ~ "normal",
+    bmi >= 25 ~ "overweight"
+  ))
+
+new_insurance_12_dummy_1 <- dummy_cols(insurance_bmi, select_columns = c("bmi_group", "region"), remove_selected_columns = TRUE)
+
+new_insurance_12_1 <- new_insurance_12_dummy_1 %>% select(where(is.numeric)) 
+
+new_insurance_12_1$bmi <- NULL
+
+insurance_12_1_pca <- prcomp(new_insurance_12_1, scale = T) # Посчитаем PCA
+
+summary(insurance_12_1_pca)
+
+fviz_eig(insurance_12_1_pca, 
+         addlabels = T, 
+         ylim = c(0, 30)) +
+  ggtitle("Как разные компоненты объясняют вариативность данных") +
+  labs(x = "Измерения", y= "Процент объясненной вариативности") +
+  theme_light() +
+  theme(text = element_text(size = 10), plot.title = element_text(hjust = 0.5, size = 10))
+
+fviz_pca_var(insurance_12_1_pca, col.var = "contrib") +
+  ggtitle("Переменные - PCA") +
+  theme_light() +
+  theme(text = element_text(size = 10), plot.title = element_text(hjust = 0.5, size = 10))# Посмотрим, как выглядит график с нынешними переменными
+
+# Отношение переменных к главным компонентам:
+fviz_contrib(insurance_12_1_pca, choice = "var", axes = 1, top = 12)
+fviz_contrib(insurance_12_1_pca, choice = "var", axes = 2, top = 12)
+fviz_contrib(insurance_12_1_pca, choice = "var", axes = 3, top = 12)
+
+ggbiplot(insurance_12_1_pca, 
+         scale=0, 
+         groups = as.factor(new_insurance_bmi$bmi_group), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_minimal()
+```
+
+Не так выразительно, как в прошлом примере, но видно, что ИМТ тоже может стать переменной, по которой можно провести кластеризацию.
+Мне кажется, что это довольно явно показывает, что манипулируя данными, можно сильно влиять на результат PCA. 
+
+А если к этому графику добавить группировку по возрастной группе, получится красивый серпантин:
+
+```{r}
+ggbiplot(insurance_12_1_pca, 
+         scale=0, 
+         groups = as.factor(new_insurance_age$age_group), 
+         ellipse = T,
+         alpha = 0.2) +
+  theme_minimal()
+```
+
+Дамми-переменная позволяет, во-первых, включить в анализ категориальную переменную. А во-вторых (как в случае с ИМТ) - позволяет искусственно создавать подвыборки для количественных переменных и смотреть, насколько это разделение может повлиять на кластеризацию.
+
+*Прим. авт. - В случае с игрой в группы по ИМТ мне видится в этом какая-то искусственная кластеризация. Как будто, мы разделили людей, а потом увидели, что модель учла наше разделение при построении графика. Как будто тут что-то не то.*
