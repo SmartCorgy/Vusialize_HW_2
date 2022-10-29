@@ -23,6 +23,8 @@ library(ggpubr)
 library(corrplot)
 library(corrr)
 library(caret)
+library(factoextra)
+library(pheatmap)
 ```
 
 #График ИМТ-траты в plotly (№2)
@@ -89,10 +91,60 @@ dummy_insurance <- data.frame(predict(dummy, newdata = insurance))
 # И объединим с оставшимися нумерическими переменными из оригинального датафрейма
 
 other_insurance <- insurance %>%
-  select("bmi", "charges")
+  select("age", "bmi", "children", "charges")
 
 new_insurance <- other_insurance %>% bind_cols(dummy_insurance)
 
 glimpse(new_insurance)
+```
+
+# Иерархическая классификация (№6)
+
+```{r, warning=FALSE}
+# Стандартизуем значения переменных
+
+insurance_scaled <- scale(new_insurance)
+head(insurance_scaled)
+
+# И найдем дистанции
+
+insurance_dist <- dist(insurance_scaled, method = "euclidean")
+as.matrix(insurance_dist)[1:6, 1:6]
+typeof(insurance_dist)
+# Высчитываем дендрограмму
+
+insurance_hc <- hclust(d = insurance_dist, 
+                        method = "ward.D2")
+
+# И визуализируем
+
+fviz_dend(insurance_hc, cex = 0.1)
+
+```
+
+# Пробуем строить кластеризацию иначе (№7)
+
+```{r, warning=FALSE}
+fviz_dend(insurance_hc, k = 3, 
+          cex = 0.1,
+          k_colors = c("#FF99FF", "#33FF99", "#00CCFF"),
+          color_labels_by_k = TRUE,
+          type = "circular"
+)
+
+clusters <- cutree(insurance_hc, k = 3)
+
+fviz_cluster(list(data = insurance_scaled, cluster = clusters),
+             palette = c("#FF99FF", "#33FF99", "#00CCFF"),
+             ellipse.type = "convex", 
+             repel = TRUE, 
+             show.clust.cent = FALSE, 
+             ggtheme = theme_light())
+```
+
+# Heatmap + иерархическая кластеризация (№8)
+
+```{r}
+pheatmap(insurance_scaled)
 ```
 
