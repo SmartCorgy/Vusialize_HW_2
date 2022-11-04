@@ -35,7 +35,7 @@ library(devtools)
 
 #График ИМТ-траты в plotly (№2)
 
-```{r, message=FALSE, warning=FALSE, eval=FALSE}
+```{r, message=FALSE, warning=FALSE}
 
 plot_ly(
   data = insurance,
@@ -47,7 +47,7 @@ plot_ly(
 
 # А теперь в ggplotly (№3)
 
-```{r, eval=FALSE}
+```{r}
 plot <- insurance %>%
   ggplot(aes(x = bmi, y = charges, color = smoker)) +
   geom_point(size = 1.5) +
